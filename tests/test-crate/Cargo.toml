@@ -1,0 +1,9 @@
+[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+alloc = []
+std = ["alloc"]
+default = ["std"]
