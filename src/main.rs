@@ -205,7 +205,7 @@ fn check_package(package: &Package, args: &NoStd, cargo: impl AsRef<OsStr>) -> R
     let tmp_path = tmp_dir.path();
     fs::create_dir(tmp_path.join("src"))?;
 
-    let alloc_section = if args.alloc {
+    let alloc_section = args.alloc.then(|| {
         quote! {
             struct Allocator;
 
@@ -222,9 +222,7 @@ fn check_package(package: &Package, args: &NoStd, cargo: impl AsRef<OsStr>) -> R
             #[global_allocator]
             static GLOBAL: Allocator = Allocator;
         }
-    } else {
-        quote! {}
-    };
+    });
     let name_ident = format_ident!("{}", name.replace('-', "_"));
     let code = quote! {
         #![no_std]

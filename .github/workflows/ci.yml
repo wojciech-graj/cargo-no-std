@@ -32,6 +32,16 @@ jobs:
       - name: Run Tests
         run: cargo test
 
+  install:
+    name: Install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install
+        run: cargo install --path .
+
   msrv:
     name: MSRV Check
     runs-on: ubuntu-latest
