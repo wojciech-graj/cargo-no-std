@@ -26,7 +26,7 @@
 )]
 #![allow(clippy::multiple_crate_versions)]
 
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{Result, anyhow, bail, ensure};
 use cargo_metadata::Package;
 use cargo_toml::{Dependency, DependencyDetail, Manifest};
 use clap::Parser;
@@ -42,6 +42,7 @@ use std::{
     env,
     ffi::{OsStr, OsString},
     fs,
+    path::Path,
     process::{Command, Output},
     time::Duration,
 };
@@ -124,7 +125,12 @@ fn main() -> Result<()> {
                 .run()?
                 .stdout,
         )?;
-        ensure!(targets.lines().any(|l| l == args.target), "target {} not installed.\nRun `rustup target add {}`, or use `--target` to select a different target", args.target, args.target);
+        ensure!(
+            targets.lines().any(|l| l == args.target),
+            "target {} not installed.\nRun `rustup target add {}`, or use `--target` to select a different target",
+            args.target,
+            args.target
+        );
     } else {
         warn!("could not locate rustup");
     }
@@ -170,7 +176,7 @@ fn main() -> Result<()> {
         .map(|(package, bar)| {
             const TICK_INTERVAL: Duration = Duration::from_millis(200);
             bar.enable_steady_tick(TICK_INTERVAL);
-            let result = check_package(package, &args, &cargo);
+            let result = check_package(package, &args, &cargo, &metadata.workspace_root);
             bar.finish_with_message(format!(
                 "{} {}",
                 match &result {
@@ -198,7 +204,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn check_package(package: &Package, args: &NoStd, cargo: impl AsRef<OsStr>) -> Result<()> {
+fn check_package(
+    package: &Package,
+    args: &NoStd,
+    cargo: impl AsRef<OsStr>,
+    workspace_root: impl AsRef<Path>,
+) -> Result<()> {
     let name = package.name.to_string();
 
     let tmp_dir = tempfile::tempdir()?;
@@ -259,9 +270,11 @@ fn check_package(package: &Package, args: &NoStd, cargo: impl AsRef<OsStr>) -> R
         },
         ..Default::default()
     };
+    let workspace_manifest = cargo_toml::Manifest::from_path(workspace_root.as_ref().join("Cargo.toml"))?;
     let manifest: Manifest<()> = Manifest {
         package: Some(cargo_toml::Package::new("no-std-check", "0.0.0")),
         dependencies: BTreeMap::from_iter([(name, Dependency::Detailed(Box::new(dep)))]),
+        patch: workspace_manifest.patch,
         ..Default::default()
     };
     let manifest_path = tmp_path.join("Cargo.toml");

@@ -1,4 +1,4 @@
-use assert_cmd::{cargo_bin_cmd, Command};
+use assert_cmd::{Command, cargo_bin_cmd};
 
 fn command() -> Command {
     let mut cmd = cargo_bin_cmd!();
