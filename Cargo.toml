@@ -1,6 +1,6 @@
 [package]
 name = "cargo-no-std"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Wojciech Graj <me@w-graj.net>"]
 edition = "2024"
 rust-version = "1.88.0"
