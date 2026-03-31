@@ -270,7 +270,8 @@ fn check_package(
         },
         ..Default::default()
     };
-    let workspace_manifest = cargo_toml::Manifest::from_path(workspace_root.as_ref().join("Cargo.toml"))?;
+    let workspace_manifest =
+        cargo_toml::Manifest::from_path(workspace_root.as_ref().join("Cargo.toml"))?;
     let manifest: Manifest<()> = Manifest {
         package: Some(cargo_toml::Package::new("no-std-check", "0.0.0")),
         dependencies: BTreeMap::from_iter([(name, Dependency::Detailed(Box::new(dep)))]),
