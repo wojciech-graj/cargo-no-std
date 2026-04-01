@@ -53,7 +53,6 @@ const DEFAULT_TARGET: &str = "x86_64-unknown-none";
 #[command(
     bin_name = "cargo",
     version,
-    author,
     disable_help_subcommand = true,
     styles = clap_cargo::style::CLAP_STYLING,
 )]
