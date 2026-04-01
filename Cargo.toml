@@ -1,16 +1,19 @@
 [package]
 name = "cargo-no-std"
 version = "0.1.2"
-authors = ["Wojciech Graj <me@w-graj.net>"]
 edition = "2024"
 rust-version = "1.88.0"
 
 description = "Validate no_std compliance"
-license = "GPL-3.0-only"
 readme = "README.md"
 repository = "https://github.com/wojciech-graj/cargo-no-std"
+license = "GPL-3.0-only"
 keywords = ["no-std"]
-categories = ["development-tools", "development-tools::cargo-plugins", "command-line-utilities"]
+categories = [
+  "command-line-utilities",
+  "development-tools",
+  "development-tools::cargo-plugins"
+]
 
 [dependencies]
 anyhow = "1.0"
