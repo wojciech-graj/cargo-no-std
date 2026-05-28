@@ -33,7 +33,7 @@ use clap::Parser;
 use colored::Colorize;
 use indicatif::{MultiProgress, ProgressBar};
 use indicatif_log_bridge::LogWrapper;
-use log::warn;
+use log::{info, warn};
 use quote::{format_ident, quote};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde_json::Value;
@@ -76,6 +76,9 @@ struct NoStd {
     /// Allow usage of the alloc crate
     #[arg(long)]
     alloc: bool,
+    /// Keep generated files
+    #[arg(long)]
+    keep: bool,
     /// Use verbose output
     #[arg(short, long)]
     verbose: bool,
@@ -212,7 +215,18 @@ fn check_package(
     let name = package.name.to_string();
 
     let tmp_dir = tempfile::tempdir()?;
-    let tmp_path = tmp_dir.path();
+    let tmp_path = if args.keep {
+        let path = tmp_dir.keep();
+        info!(
+            "storing build files for {} at {}",
+            name,
+            path.to_string_lossy()
+        );
+        path
+    } else {
+        tmp_dir.path().to_path_buf()
+    };
+
     fs::create_dir(tmp_path.join("src"))?;
 
     let alloc_section = args.alloc.then(|| {
