@@ -26,26 +26,28 @@
 )]
 #![allow(clippy::multiple_crate_versions)]
 
-use anyhow::{Result, anyhow, bail, ensure};
+use std::{
+    collections::BTreeMap,
+    env,
+    ffi::{OsStr, OsString},
+    fs,
+    path::{Path, PathBuf},
+    process::{Command, Output},
+    time::Duration,
+};
+
+use anyhow::{Error, Result, anyhow, bail, ensure};
 use cargo_metadata::Package;
 use cargo_toml::{Dependency, DependencyDetail, Manifest};
 use clap::Parser;
 use colored::Colorize;
 use indicatif::{MultiProgress, ProgressBar};
 use indicatif_log_bridge::LogWrapper;
-use log::{info, warn};
+use log::{error, info, warn};
 use quote::{format_ident, quote};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde_json::Value;
-use std::{
-    collections::BTreeMap,
-    env,
-    ffi::{OsStr, OsString},
-    fs,
-    path::Path,
-    process::{Command, Output},
-    time::Duration,
-};
+use toml_edit::DocumentMut;
 
 const DEFAULT_TARGET: &str = "x86_64-unknown-none";
 
@@ -63,6 +65,7 @@ enum Subcommand {
 
 #[derive(Parser, Debug)]
 #[command(styles = clap_cargo::style::CLAP_STYLING)]
+#[allow(clippy::struct_excessive_bools)]
 struct NoStd {
     #[command(flatten)]
     manifest: clap_cargo::Manifest,
@@ -79,6 +82,12 @@ struct NoStd {
     /// Keep generated files
     #[arg(long)]
     keep: bool,
+    /// Generate test crates in the workspace
+    ///
+    /// This option is useful for inhering workspace patches.
+    /// NOTE: This will temporarily modify the workspace Cargo.toml file.
+    #[arg(long)]
+    in_workspace: bool,
     /// Use verbose output
     #[arg(short, long)]
     verbose: bool,
@@ -103,6 +112,7 @@ impl CommandExt for Command {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<()> {
     let logger =
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).build();
@@ -163,6 +173,43 @@ fn main() -> Result<()> {
 
     ensure!(!packages.is_empty(), "no packages to check");
 
+    let check_crate_names = packages
+        .iter()
+        .map(|package| format!("{}-no-std-check-{}", package.name, std::process::id()))
+        .collect::<Vec<_>>();
+
+    let _cleanup = if args.in_workspace {
+        let workspace_manifest_path = metadata.workspace_root.join("Cargo.toml");
+        let workspace_lockfile_path = metadata.workspace_root.join("Cargo.lock");
+
+        let mut manifest = fs::read_to_string(&workspace_manifest_path)?.parse::<DocumentMut>()?;
+        let workspace = manifest
+            .get_mut("workspace")
+            .ok_or_else(|| anyhow!("workspace root missing 'workspace' item"))?
+            .as_table_mut()
+            .ok_or_else(|| anyhow!("workspace root 'workspace' item isn't a table"))?;
+        let members = workspace
+            .get_mut("members")
+            .ok_or_else(|| anyhow!("workspace root missing 'workspace.members' item"))?
+            .as_array_mut()
+            .ok_or_else(|| anyhow!("workspace root 'workspace.members' item isn't an array"))?;
+        for crate_ in &check_crate_names {
+            members.push(crate_);
+        }
+
+        let cleanup_lockfile = workspace_lockfile_path
+            .exists()
+            .then(|| backup_file(workspace_lockfile_path))
+            .transpose()?;
+        let cleanup_manifest = backup_file(&workspace_manifest_path)?;
+
+        fs::write(workspace_manifest_path, manifest.to_string().as_bytes())?;
+
+        Some((cleanup_manifest, cleanup_lockfile))
+    } else {
+        None
+    };
+
     let bars = packages
         .iter()
         .map(|package| {
@@ -175,10 +222,17 @@ fn main() -> Result<()> {
     let results = packages
         .par_iter()
         .zip(bars)
-        .map(|(package, bar)| {
+        .zip(check_crate_names)
+        .map(|((package, bar), check_crate_name)| {
             const TICK_INTERVAL: Duration = Duration::from_millis(200);
             bar.enable_steady_tick(TICK_INTERVAL);
-            let result = check_package(package, &args, &cargo, &metadata.workspace_root);
+            let result = check_package(
+                &check_crate_name,
+                package,
+                &args,
+                &cargo,
+                &metadata.workspace_root,
+            );
             bar.finish_with_message(format!(
                 "{} {}",
                 match &result {
@@ -206,7 +260,22 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn backup_file<P>(path: P) -> Result<RenameGuard<PathBuf, PathBuf>, Error>
+where
+    P: AsRef<Path>,
+{
+    let backup_path = path.as_ref().with_added_extension("bak");
+    let cleanup = RenameGuard {
+        from: path.as_ref().to_path_buf(),
+        to: backup_path.clone(),
+    };
+    fs::copy(&path, &backup_path)?;
+    info!("created backup {}", backup_path.to_string_lossy());
+    Ok(cleanup)
+}
+
 fn check_package(
+    check_crate_name: &str,
     package: &Package,
     args: &NoStd,
     cargo: impl AsRef<OsStr>,
@@ -214,20 +283,24 @@ fn check_package(
 ) -> Result<()> {
     let name = package.name.to_string();
 
-    let tmp_dir = tempfile::tempdir()?;
-    let tmp_path = if args.keep {
-        let path = tmp_dir.keep();
+    let path = if args.in_workspace {
+        workspace_root.as_ref().join(check_crate_name)
+    } else {
+        tempfile::tempdir()?.keep()
+    };
+
+    let _cleanup = if args.keep {
         info!(
             "storing build files for {} at {}",
             name,
             path.to_string_lossy()
         );
-        path
+        None
     } else {
-        tmp_dir.path().to_path_buf()
+        Some(RemoveDirAllGuard(&path))
     };
 
-    fs::create_dir(tmp_path.join("src"))?;
+    fs::create_dir_all(path.join("src"))?;
 
     let alloc_section = args.alloc.then(|| {
         quote! {
@@ -265,7 +338,7 @@ fn check_package(
         }
     };
 
-    fs::write(tmp_path.join("src/main.rs"), code.to_string())?;
+    fs::write(path.join("src/main.rs"), code.to_string())?;
 
     let dep = DependencyDetail {
         path: Some(
@@ -283,15 +356,13 @@ fn check_package(
         },
         ..Default::default()
     };
-    let workspace_manifest =
-        cargo_toml::Manifest::from_path(workspace_root.as_ref().join("Cargo.toml"))?;
+
     let manifest: Manifest<()> = Manifest {
         package: Some(cargo_toml::Package::new("no-std-check", "0.0.0")),
         dependencies: BTreeMap::from_iter([(name, Dependency::Detailed(Box::new(dep)))]),
-        patch: workspace_manifest.patch,
         ..Default::default()
     };
-    let manifest_path = tmp_path.join("Cargo.toml");
+    let manifest_path = path.join("Cargo.toml");
     fs::write(&manifest_path, toml::to_string(&manifest)?)?;
 
     Command::new(cargo)
@@ -326,4 +397,51 @@ fn target_has_std(target: &str) -> Result<bool> {
     has_std
         .as_bool()
         .ok_or_else(|| anyhow!("std field is not bool"))
+}
+
+#[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+struct RemoveDirAllGuard<P>(pub P)
+where
+    P: AsRef<Path>;
+
+impl<P> Drop for RemoveDirAllGuard<P>
+where
+    P: AsRef<Path>,
+{
+    fn drop(&mut self) {
+        if let Err(e) = fs::remove_dir_all(&self.0) {
+            error!(
+                "failed to delete directory {}: {}",
+                self.0.as_ref().to_string_lossy(),
+                e
+            );
+        }
+    }
+}
+
+#[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+struct RenameGuard<P, Q>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    pub from: P,
+    pub to: Q,
+}
+
+impl<P, Q> Drop for RenameGuard<P, Q>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    fn drop(&mut self) {
+        if let Err(e) = fs::rename(&self.from, &self.to) {
+            error!(
+                "failed to rename {} to {}: {}",
+                self.from.as_ref().to_string_lossy(),
+                self.to.as_ref().to_string_lossy(),
+                e
+            );
+        }
+    }
 }
