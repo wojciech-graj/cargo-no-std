@@ -150,17 +150,10 @@ fn main() -> Result<()> {
     if args.target != DEFAULT_TARGET {
         match target_has_std(&args.target) {
             Ok(true) => bail!("selected target has std"),
-            Ok(false) => {}
-            Err(e) => {
-                warn!(
-                    "could not check if selected target lacks std{}",
-                    if args.verbose {
-                        format!("\n{e}")
-                    } else {
-                        String::new()
-                    }
-                );
+            Err(e) if args.verbose => {
+                warn!("could not check if selected target lacks std\n{e}");
             }
+            _ => {}
         }
     }
 
