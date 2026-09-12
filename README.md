@@ -16,16 +16,34 @@ cargo install cargo-no-std
 Usage: cargo no-std [OPTIONS]
 
 Options:
-      --manifest-path <PATH>  Path to Cargo.toml
-  -p, --package <SPEC>        Package to process (see `cargo help pkgid`)
-      --workspace             Process all packages in the workspace
-      --exclude <SPEC>        Exclude packages from being processed
-      --all-features          Activate all available features
-      --no-default-features   Do not activate the `default` feature
-  -F, --features <FEATURES>   Space-separated list of features to activate
-      --target <TARGET>       Target for which to check [default: x86_64-unknown-none]
-      --alloc                 Allow usage of the alloc crate
-  -v, --verbose               Use verbose output
-  -V, --version               Print version
-  -h, --help                  Print help
+      --manifest-path <PATH>
+          Path to Cargo.toml
+  -p, --package <SPEC>
+          Package to process (see `cargo help pkgid`)
+      --workspace
+          Process all packages in the workspace
+      --exclude <SPEC>
+          Exclude packages from being processed
+      --all-features
+          Activate all available features
+      --no-default-features
+          Do not activate the `default` feature
+  -F, --features <FEATURES>
+          Space-separated list of features to activate
+      --target <TARGET>
+          Target for which to check
+          [default: x86_64-unknown-none]
+      --alloc
+          Allow usage of the alloc crate
+      --keep
+          Keep generated files
+      --in-workspace
+          Generate test crates in the workspace
+          This option is useful for inhering workspace patches. NOTE: This will temporarily modify the workspace Cargo.toml file.
+  -v, --verbose
+          Use verbose output
+  -V, --version
+          Print version
+  -h, --help
+          Print help (see a summary with '-h')
 ```
