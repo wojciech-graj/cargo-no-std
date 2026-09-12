@@ -259,8 +259,8 @@ where
 {
     let backup_path = path.as_ref().with_added_extension("bak");
     let cleanup = RenameGuard {
-        from: path.as_ref().to_path_buf(),
-        to: backup_path.clone(),
+        from: backup_path.clone(),
+        to: path.as_ref().to_path_buf(),
     };
     fs::copy(&path, &backup_path)?;
     info!("created backup {}", backup_path.to_string_lossy());

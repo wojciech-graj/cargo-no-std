@@ -1,3 +1,5 @@
+# v0.2.1
+- Fix backup restore with --in-workspace flag
 # v0.2.0
 - Add --keep flag for preserving generated files
 - Replace patch inheritance with the --in-workspace flag
