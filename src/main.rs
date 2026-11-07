@@ -36,9 +36,9 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Error, Result, anyhow, bail, ensure};
+use anyhow::{Result, anyhow, bail, ensure};
 use cargo_metadata::Package;
-use cargo_toml::{Dependency, DependencyDetail, Manifest};
+use cargo_toml::{Dependency, DependencyDetail, Manifest, SemVer};
 use clap::Parser;
 use colored::Colorize;
 use indicatif::{MultiProgress, ProgressBar};
@@ -253,7 +253,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn backup_file<P>(path: P) -> Result<RenameGuard<PathBuf, PathBuf>, Error>
+fn backup_file<P>(path: P) -> Result<RenameGuard<PathBuf, PathBuf>>
 where
     P: AsRef<Path>,
 {
@@ -351,7 +351,10 @@ fn check_package(
     };
 
     let manifest: Manifest<()> = Manifest {
-        package: Some(cargo_toml::Package::new("no-std-check", "0.0.0")),
+        package: Some(cargo_toml::Package::new(
+            "no-std-check",
+            SemVer::new(0, 0, 0),
+        )),
         dependencies: BTreeMap::from_iter([(name, Dependency::Detailed(Box::new(dep)))]),
         ..Default::default()
     };

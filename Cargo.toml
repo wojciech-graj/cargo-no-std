@@ -12,21 +12,21 @@ keywords = ["no-std"]
 categories = ["command-line-utilities", "development-tools", "development-tools::cargo-plugins"]
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1.0.1"
 cargo_metadata = "0.23"
-cargo_toml = "0.22"
-clap = { version = "4.0", features = ["cargo", "derive"] }
-clap-cargo = { version = "0.18", features = ["cargo_metadata"] }
-colored = "3.0"
+cargo_toml = "1"
+clap = { version = "4", features = ["cargo", "derive"] }
+clap-cargo = { version = "0.19", features = ["cargo_metadata"] }
+colored = "3"
 env_logger = "0.11"
 indicatif = "0.18"
 indicatif-log-bridge = "0.2"
 log = "0.4"
-quote = "1.0"
-rayon = "1.0"
-serde_json = "1.0"
-tempfile = "3.0"
-toml = "0.9"
+quote = "1"
+rayon = "1"
+serde_json = "1"
+tempfile = "3.20"
+toml = "1"
 toml_edit = "0.25"
 
 [dev-dependencies]
